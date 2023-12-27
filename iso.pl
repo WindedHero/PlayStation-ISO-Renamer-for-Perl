@@ -8,6 +8,7 @@ opendir DIR,$dir;
 my @dir = readdir(DIR);
 close DIR;
 #use warnings;
+my $debug = 0;
 foreach $object (@dir) {
 	my $file = $dir . "\\" . $object;
 	next unless $file =~ m/\.iso$/gi;
@@ -69,7 +70,7 @@ foreach $object (@dir) {
 		}
 		$Category = pack('H*', $Category);
 		$Category =~ s/(\x0*|\s*)\|$//;
-		print "ID = $ID\nKey = $Key\nUnknown = $Unknown\nCategory = $Category\n";
+		print "UMD_DATA.BIN:ID = $ID\nUMD_DATA.BIN:Key = $Key\nUMD_DATA.BIN:Unknown = $Unknown\nUMD_DATA.BIN:Category = $Category\n";
 		#print "\n###END UMD_DATA.BIN###\n###START OF PARAM.SFO###\n";
 		my ($header_magic, $header_version, $header_key_table_start, $header_data_table_start, $header_tables_entries);
 		if ($Category eq "V") { #UMD category is Video
@@ -82,45 +83,56 @@ foreach $object (@dir) {
 		read($param_sfo, $header_magic, 4, 0);$current_cursor+=4;
 		$header_magic = uc unpack 'H*', $header_magic;
 		$header_magic = pack 'H*', $header_magic;
-		#print "header_magic = \'$header_magic\'\n";
+		if ($debug == 1) {
+			print "header_magic = \'$header_magic\'\n";
+		}
 		read($param_sfo, $header_version, 4, 0);$current_cursor+=4;
 		$header_version = uc unpack 'H*', $header_version;
-		#print "header_version = \'$header_version\'\n"; 
+		if ($debug == 1) {
+			print "header_version = \'$header_version\'\n"; 
+		}
 		for (my $current_byte = 0; $current_byte < 4; $current_byte++) {
 			my $byte;
 			read($param_sfo, $byte, 1, 0);$current_cursor+=1;
 			$header_key_table_start = uc(unpack('H*', $byte)) . $header_key_table_start;
-			#$header_key_table_start =~ s/0+$//g;
 		}
-		#$header_key_table_start = hex($header_key_table_start);
-		print "header_key_table_start = \'$header_key_table_start\' (hex address)\n";
+		if ($debug == 1) {
+			print "header_key_table_start = \'$header_key_table_start\' (hex address)\n";
+		}
 		for (my $current_byte = 0; $current_byte < 4; $current_byte++) {
 			my $byte;
 			read($param_sfo, $byte, 1, 0);$current_cursor+=1;
 			$header_data_table_start = uc(unpack('H*', $byte)) . $header_data_table_start;
-			#$header_data_table_start =~ s/0+$//g;
 		}
 		#$header_data_table_start = hex($header_data_table_start);
-		print "header_data_table_start = \'$header_data_table_start\' (hex address)\n";
+		if ($debug == 1) {
+			print "header_data_table_start = \'$header_data_table_start\' (hex address)\n";
+		}
 		read($param_sfo, $header_tables_entries, 4, 0);$current_cursor+=4;
 		$header_tables_entries = uc unpack 'H*', $header_tables_entries;
 		$header_tables_entries =~ s/0+$//g;#this is wrong but it works for now-- 03000000 should be read by programs as 3. not sure how to convert binary-stored decimals to actual decimals safely
 		$header_tables_entries = hex($header_tables_entries);
-		print "header_tables_entries = \'$header_tables_entries\'\n";
+		if ($debug == 1) {
+			print "header_tables_entries = \'$header_tables_entries\'\n";
+		}
 		#print "cursor at $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
 		for (my $current_header_entry = 0; $current_header_entry < $header_tables_entries; $current_header_entry++) {
 			#print "Header Table Entry " .($current_header_entry+1) . "\n";
 			my $index_table_key_offset;
 			read($param_sfo, $index_table_key_offset, 2, 0);$current_cursor+=2;
 			$index_table_key_offset = uc unpack 'H*', $index_table_key_offset;
-			print "index_table_key_" . ($current_header_entry+1) . "_offset = \'$index_table_key_offset\'\n";
+			if ($debug == 1) {
+				print "index_table_key_" . ($current_header_entry+1) . "_offset = \'$index_table_key_offset\'\n";
+			}
 			my $index_table_data_fmt;
 			read($param_sfo, $index_table_data_fmt, 2, 0);$current_cursor+=2;
 			$index_table_data_fmt = uc unpack 'H*', $index_table_data_fmt;
-			#if ($index_table_data_fmt eq '0400') {$index_table_data_fmt = "utf8 Special Mode, NOT NULL terminated";}
-			#if ($index_table_data_fmt eq '0402') {$index_table_data_fmt = "utf8 character string, NULL terminated (0x00)";}
-			#if ($index_table_data_fmt eq '0404') {$index_table_data_fmt = "integer 32 bits unsigned";}
-			print "index_table_data_" . ($current_header_entry+1) . "_fmt = \'$index_table_data_fmt\'\n";
+			#$index_table_data_fmt => '0400' = "utf8 Special Mode, NOT NULL terminated"
+			#$index_table_data_fmt => '0402' = "utf8 character string, NULL terminated (0x00)"
+			#$index_table_data_fmt => '0404' = "integer 32 bits unsigned"
+			if ($debug == 1) {
+				print "index_table_data_" . ($current_header_entry+1) . "_fmt = \'$index_table_data_fmt\'\n";
+			}
 			my $index_table_data_len;
 			for (my $current_byte = 0; $current_byte < 4; $current_byte++) {#slurp 4 bytes for this variable
 				my $byte;
@@ -128,20 +140,28 @@ foreach $object (@dir) {
 				$index_table_data_len = uc(unpack('H*', $byte)) . $index_table_data_len;
 			}
 			$index_table_data_len = hex($index_table_data_len);
-			print "index_table_data_" . ($current_header_entry+1) . "_len = \'$index_table_data_len\' (bytes)\n";
+			if ($debug == 1) {
+				print "index_table_data_" . ($current_header_entry+1) . "_len = \'$index_table_data_len\' (bytes)\n";
+			}
 			my $index_table_data_max_len;
-			#print "cursor at $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+			if ($debug == 1) {
+				print "cursor at $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+			}
 			for (my $current_byte = 0; $current_byte < 4; $current_byte++) {#slurp 4 bytes for this variable
 				my $byte;
 				read($param_sfo, $byte, 1, 0);$current_cursor+=1;
 				$index_table_data_max_len = uc(unpack('H*', $byte)) . $index_table_data_max_len;
 			}
 			$index_table_data_max_len = hex($index_table_data_max_len);
-			#print "index_table_data_" . ($current_header_entry+1) . "_max_len = \'$index_table_data_max_len\' (bytes)\n";
+			if ($debug == 1) {
+				print "index_table_data_" . ($current_header_entry+1) . "_max_len = \'$index_table_data_max_len\' (bytes)\n";
+			}
 			my $index_table_data_offset;
 			read($param_sfo, $index_table_data_offset, 4, 0);$current_cursor+=4;
 			$index_table_data_offset = uc unpack 'H*', $index_table_data_offset;
-			#print "index_table_data_" . ($current_header_entry+1) . "_offset = \'$index_table_data_offset\'\n";
+			if ($debug == 1) {
+				print "index_table_data_" . ($current_header_entry+1) . "_offset = \'$index_table_data_offset\'\n";
+			}
 			push(@DATA, {
 				'index_table_key_offset' => $index_table_key_offset,
 				'index_table_data_fmt' => $index_table_data_fmt,
@@ -149,7 +169,9 @@ foreach $object (@dir) {
 				'index_table_data_max_len' => $index_table_data_max_len,
 				'index_table_data_offset' => $index_table_data_offset});
 		}
-		#print "cursor entering key table at char $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+		if ($debug == 1) {
+			print "cursor entering key table at char $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+		}
 		for (my $current_key = 0; $current_key < $header_tables_entries; $current_key++) {
 			my $key_table_key;
 			for (my $terminated = 0; $terminated < 1; ) {
@@ -161,7 +183,9 @@ foreach $object (@dir) {
 				if (uc unpack 'H*', $byte_to_hex eq "00") {$terminated++;}
 			}
 			$key_table_key = pack 'H*', $key_table_key;
-			print "key_table_key_" . ($current_key+1) . " = \'$key_table_key\'\n";
+			if ($debug == 1) {
+				print "key_table_key_" . ($current_key+1) . " = \'$key_table_key\'\n";
+			}
 			$DATA[$current_key]{'key_table_key'} = $key_table_key;
 		}
 		if (($current_cursor % 4) > 0) {
@@ -169,12 +193,18 @@ foreach $object (@dir) {
 			$padding_to_read = ((($current_cursor % 4)*-1)+4);
 			read($param_sfo, $padding, $padding_to_read, 0);
 			$current_cursor = ($current_cursor+$padding_to_read);
-			#print "shifted cursor to $current_cursor (buffer required for 4-byte alignment)\n";
+			if ($debug == 1) {
+				print "shifted cursor to $current_cursor (buffer required for 4-byte alignment)\n";
+			}
 		}
-		#print "cursor entering data table at char $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+		if ($debug == 1) {
+			print "cursor entering data table at char $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+		}
 		for ($current_data_table_data_entry = 0; $current_data_table_data_entry < $header_tables_entries; $current_data_table_data_entry++) {
 			my $table_data;
-			#print "reading $DATA[$current_data_table_data_entry]{'index_table_data_max_len'} bytes for data table entry $current_data_table_entry\n";
+			if ($debug == 1) {
+				print "reading $DATA[$current_data_table_data_entry]{'index_table_data_max_len'} bytes for data table entry $current_data_table_entry\n";
+			}
 			if ($DATA[$current_data_table_data_entry]{'index_table_data_fmt'} eq '0402') {
 				#utf8 character string, NULL terminated (0x00)
 				read($param_sfo, $table_data, $DATA[$current_data_table_data_entry]{'index_table_data_max_len'}, 0);$current_cursor+=$DATA[$current_data_table_data_entry]{'index_table_data_max_len'};
@@ -190,12 +220,16 @@ foreach $object (@dir) {
 				}
 			}
 			$DATA[$current_data_table_data_entry]{'data'} = $table_data;
-			print "data_table_data_" . ($current_data_table_data_entry+1) . " = \'$table_data\' (max length $DATA[$current_data_table_data_entry]{'index_table_data_max_len'}, length $DATA[$current_data_table_data_entry]{'index_table_data_len'}) \n";
-			#print "cursor at $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+			if ($debug == 1) {
+				print "data_table_data_" . ($current_data_table_data_entry+1) . " = \'$table_data\' (max length $DATA[$current_data_table_data_entry]{'index_table_data_max_len'}, length $DATA[$current_data_table_data_entry]{'index_table_data_len'}) \n";
+				print "cursor at $current_cursor (hex address " . sprintf("0x%X",$current_cursor) . ")\n";
+			}
 		}
 		my $iterator = 0;
 		foreach (@DATA) {
-			#print "$DATA[$iterator]{'key_table_key'} => $DATA[$iterator]{'data'}\n";
+			if ($debug == 1) {
+				print "$DATA[$iterator]{'key_table_key'} => $DATA[$iterator]{'data'}\n";
+			}
 			$DATA[$iterator]{'key_table_key'} =~ s/\x0$//;
 			$DATA[$iterator]{'key_table_key'} =~ s/\x0+$//;
 			$DATA[$iterator]{'key_table_key'} =~ s/(\!|\?|\:)//;
@@ -205,7 +239,7 @@ foreach $object (@dir) {
 			$ENTRY{$DATA[$iterator]{'key_table_key'}} = $DATA[$iterator]{'data'};
 			$iterator++;
 		}
-		foreach (keys %ENTRY) {
+		foreach (sort keys %ENTRY) {
 			print "$_ => $ENTRY{$_}\n";
 		}
 		if (($ID ne "")&&($ENTRY{'TITLE'} ne "")) {
@@ -238,11 +272,13 @@ foreach $object (@dir) {
 			$ENTRY{'DISC_VERSION'} =~ s/(\!|\?|\:)//;
 			$filename = $filename . " (ver $ENTRY{'DISC_VERSION'})";
 		}
-		print "rename $file, C:\\ISO\\$filename\.iso";
-		undef $ref;
-		undef $param_sfo;
-		undef $umd_data_bin;
-		rename ($file, "$filename\.iso") || die "Error: $!";
+		if ($filename ne "") {
+			print "rename $file, $filename\.iso";
+			undef $ref;
+			undef $param_sfo;
+			undef $umd_data_bin;
+			rename ($file, "$filename\.iso") || die "Error: $!";
+		}
 	}
 	else {
 		#this isn't a file (more likely a directory
