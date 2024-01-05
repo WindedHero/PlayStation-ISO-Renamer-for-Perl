@@ -33,8 +33,12 @@ foreach $object (@dir) {
 			$createdDate = "$year" . "-" . $month . "-" . $day . "T" . $hour . ":" . $minute . ":" . $second . $tzoffset;
 			my $dt = DateTime->new(year => $year, month=>$month, day=>$day, hour=>$hour, minute=>$minute, second=>$second, time_zone=>$tzoffset);
 			$createdEpoch = $dt->epoch;
+			chmod 0777, $file;
+			print "'Created " . $createdDate . "$tzoffset'($createdEpoch)\n";
+			if ($createdEpoch =~ m/^\d+$/) {
+				utime(time(), $createdEpoch,$file) || die "Error setting mtime '$createdEpoch' for '$file': $!\n";
+			}
 		}
-		print "'Created " . $createdDate . "$tzoffset'($createdEpoch)\n";
 		
 		my $filename;
 		my %ENTRY;
@@ -307,10 +311,6 @@ foreach $object (@dir) {
 			undef $ref;
 			undef $param_sfo;
 			undef $umd_data_bin;
-			if ($createdEpoch =~ m/^\d+$/) {
-				print "setting modified time\n";
-				utime(time(), $createdEpoch,$file) || die "Error: $!\n";
-			}
 			print "rename '$file' => '$filename\.iso'\n";
 			rename ($file, "$filename\.iso") || die "Error: $!\n";
 			if ($Category eq "G") {
