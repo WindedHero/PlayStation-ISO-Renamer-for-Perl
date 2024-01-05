@@ -3,20 +3,42 @@ use utf8;
 use Encode;
 use File::Copy;
 use VirtualFS::ISO9660;
+use DateTime;
+#use warnings;
+use File::Copy;
+my $debug = 0;
 my $dir = ".";
 opendir DIR,$dir;
 my @dir = readdir(DIR);
 close DIR;
-#use warnings;
-my $debug = 0;
+#to implement: 0000832d (2005-06-08 00:00:00.00 as 2005060800000000) in ISO file is date created.
 foreach $object (@dir) {
 	my $file = $dir . "\\" . $object;
 	next unless $file =~ m/\.iso$/gi;
 	if (-f $file){
+		print "############################################################\n";
+		print "####$file####\n";
+		my $createdDate;
+		my $tzoffset;
+		my $createdEpoch;
+		open(FH, '<', $file);
+		seek(FH, 33581, 0);
+		read(FH, $createdDate, 17, 0) or die "Can't read $file.";
+		close(FH);
+		if ($createdDate =~ m/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(.)/) {
+			my ($year, $month, $day, $hour, $minute, $second, $time_zone) = ($1, $2, $3, $4, $5, $6, $7);
+			$tzoffset = unpack('c*',$8);
+			if ($tzoffset < 0) {$tzoffset = '-' . sprintf("%02d",int(abs($tzoffset/4))) . ":" .  sprintf("%02d",(abs($tzoffset/4) - abs(int($tzoffset/4)))*60);}
+			if ($tzoffset > 0) {$tzoffset = '+' . sprintf("%02d",int(abs($tzoffset/4))) . ":" .  sprintf("%02d",(abs($tzoffset/4) - abs(int($tzoffset/4)))*60);}
+			$createdDate = "$year" . "-" . $month . "-" . $day . "T" . $hour . ":" . $minute . ":" . $second . $tzoffset;
+			my $dt = DateTime->new(year => $year, month=>$month, day=>$day, hour=>$hour, minute=>$minute, second=>$second, time_zone=>$tzoffset);
+			$createdEpoch = $dt->epoch;
+		}
+		print "'Created " . $createdDate . "$tzoffset'($createdEpoch)\n";
+		
 		my $filename;
 		my %ENTRY;
 		my @DATA;
-		print "\n\n###$file###\n";
 		my $ref = new VirtualFS::ISO9660($file) or die "\nCan't open $file: $!";
 		$ref = new VirtualFS::ISO9660($file, -verbose => 1);
 		%all_ids = $ref->identifier;
@@ -240,7 +262,10 @@ foreach $object (@dir) {
 			$iterator++;
 		}
 		foreach (sort keys %ENTRY) {
-			print "$_ => $ENTRY{$_}\n";
+			if ($_ eq 'PARENTAL_LEVEL') {
+				$ENTRY{$_} = hex($ENTRY{$_});
+			}
+			print "PARAM.SFO:$_ => '$ENTRY{$_}'\n";
 		}
 		if (($ID ne "")&&($ENTRY{'TITLE'} ne "")) {
 			$ID =~ s/\x0+$//;
@@ -273,11 +298,29 @@ foreach $object (@dir) {
 			$filename = $filename . " (ver $ENTRY{'DISC_VERSION'})";
 		}
 		if ($filename ne "") {
-			print "rename $file, $filename\.iso";
+			if (!-d ".\\GAME\\") {
+				mkdir(".\\GAME\\");
+			}
+			if (!-d ".\\VIDEO\\") {
+				mkdir(".\\VIDEO\\");
+			}
 			undef $ref;
 			undef $param_sfo;
 			undef $umd_data_bin;
-			rename ($file, "$filename\.iso") || die "Error: $!";
+			if ($createdEpoch =~ m/^\d+$/) {
+				print "setting modified time\n";
+				utime(time(), $createdEpoch,$file) || die "Error: $!\n";
+			}
+			print "rename '$file' => '$filename\.iso'\n";
+			rename ($file, "$filename\.iso") || die "Error: $!\n";
+			if ($Category eq "G") {
+				print "move '.\\$file' => '.\\GAME\\$filename\.iso'\n";
+				move(".\\$filename\.iso", ".\\GAME\\$filename\.iso");
+			}
+			if ($Category eq "V") {
+				print "move '.\\$file' => '.\\VIDEO\\$filename\.iso'\n";
+				move(".\\$filename\.iso", ".\\VIDEO\\$filename\.iso");
+			}
 		}
 	}
 	else {
@@ -286,11 +329,3 @@ foreach $object (@dir) {
 	}
 	undef %ENTRY;
 }
-$iterator = 0;
-	
-#$ref->opendir($dh, '/') or die "Can't open rootdir in $file\n";
-#print "\nfiles in $file's root directory:\n";
-#for ($dh->readdir) { print "\t$_\n"; }
-#print "\nlet's see that again!\n";
-#$dh->rewinddir();
-#for ($dh->readdir) { print "\t$_\n"; }
