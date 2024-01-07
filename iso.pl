@@ -315,11 +315,11 @@ foreach $object (@dir) {
 			rename ($file, "$filename\.iso") || die "Error: $!\n";
 			if ($Category eq "G") {
 				print "move '.\\$file' => '.\\GAME\\$filename\.iso'\n";
-				move(".\\$filename\.iso", ".\\GAME\\$filename\.iso");
+				if (!-e ".\\GAME\\$filename\.iso") {move(".\\$filename\.iso", ".\\GAME\\$filename\.iso");}
 			}
 			if ($Category eq "V") {
 				print "move '.\\$file' => '.\\VIDEO\\$filename\.iso'\n";
-				move(".\\$filename\.iso", ".\\VIDEO\\$filename\.iso");
+				if (!-e ".\\VIDEO\\$filename\.iso") {move(".\\$filename\.iso", ".\\VIDEO\\$filename\.iso");}
 			}
 		}
 	}
